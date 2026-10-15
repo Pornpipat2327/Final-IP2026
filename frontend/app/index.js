@@ -273,7 +273,18 @@ export default function DashboardScreen() {
   // ── Logout ─────────────────────────────────────────────────────────────────
   const handleLogout = () => {
     showConfirm('ออกจากระบบ', 'ต้องการออกจากระบบใช่ไหม?', async () => {
-      await AsyncStorage.multiRemove(['token', 'user']);
+      try {
+        await AsyncStorage.removeItem('token');
+        await AsyncStorage.removeItem('user');
+      } catch (e) {
+        console.warn('AsyncStorage remove error:', e);
+      }
+      if (typeof window !== 'undefined' && window.localStorage) {
+        try {
+          window.localStorage.removeItem('token');
+          window.localStorage.removeItem('user');
+        } catch {}
+      }
       router.replace('/login');
     });
   };
