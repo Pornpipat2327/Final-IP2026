@@ -115,14 +115,23 @@ app.post('/api/login', async function(req, res) {
 });
 
 // PHASE 1: Employee CRUD
-// GET /api/employees
+// GET /api/employees (supports ?search=...)
 app.get('/api/employees', async function(req, res) {
+  var search = (req.query.search || '').trim().toLowerCase();
+  var result = [];
+
   if (isDbConnected()) {
     try {
-      const [rows] = await getPool().query(
-        `SELECT id, name, position, status, CAST(salary AS SIGNED) as salary FROM \`${TABLE_NAME}\` ORDER BY id ASC`
-      );
-      const result = rows.map(function(r) {
+      var query = `SELECT id, name, position, status, CAST(salary AS SIGNED) as salary FROM \`${TABLE_NAME}\``;
+      var params = [];
+      if (search) {
+        query += ` WHERE LOWER(name) LIKE ? OR LOWER(position) LIKE ? OR LOWER(status) LIKE ?`;
+        var s = `%${search}%`;
+        params = [s, s, s];
+      }
+      query += ` ORDER BY id ASC`;
+      const [rows] = await getPool().query(query, params);
+      result = rows.map(function(r) {
         return {
           id: String(r.id),
           name: r.name,
@@ -136,7 +145,19 @@ app.get('/api/employees', async function(req, res) {
       console.error('DB fetch error, falling back to memory:', err.message);
     }
   }
-  res.json(employees);
+
+  result = employees;
+  if (search) {
+    result = employees.filter(function(e) {
+      return (
+        e.name.toLowerCase().includes(search) ||
+        e.position.toLowerCase().includes(search) ||
+        e.status.toLowerCase().includes(search) ||
+        String(e.salary).includes(search)
+      );
+    });
+  }
+  res.json(result);
 });
 
 // POST /api/employees
@@ -190,6 +211,74 @@ app.post('/api/employees', async function(req, res) {
 
   employees.push(newEmployee);
   res.status(201).json(newEmployee);
+});
+
+// PUT /api/employees/:id  (Update Employee Details: name, position, salary, status)
+app.put('/api/employees/:id', async function(req, res) {
+  var id = req.params.id;
+  var name = req.body.name;
+  var position = req.body.position;
+  var salary = req.body.salary;
+  var status = req.body.status;
+
+  if (
+    name == null    || String(name).trim()     === '' ||
+    position == null || String(position).trim() === '' ||
+    salary == null  || String(salary).trim()   === ''
+  ) {
+    return res.status(400).json({ error: 'name, position, and salary are required' });
+  }
+
+  var salaryNum = Number(salary);
+  if (isNaN(salaryNum) || salaryNum < 0) {
+    return res.status(400).json({ error: 'salary must be a valid positive number' });
+  }
+
+  var trimmedName = String(name).trim();
+  var trimmedPos = String(position).trim();
+
+  if (isDbConnected()) {
+    try {
+      const [rows] = await getPool().query(
+        `SELECT id, name, position, status, CAST(salary AS SIGNED) as salary FROM \`${TABLE_NAME}\` WHERE id = ?`,
+        [id]
+      );
+      if (rows.length === 0) {
+        return res.status(404).json({ error: 'Employee not found' });
+      }
+      var current = rows[0];
+      var updatedStatus = status ? String(status) : current.status;
+      await getPool().query(
+        `UPDATE \`${TABLE_NAME}\` SET name = ?, position = ?, salary = ?, status = ? WHERE id = ?`,
+        [trimmedName, trimmedPos, salaryNum, updatedStatus, id]
+      );
+      return res.json({
+        id:       String(current.id),
+        name:     trimmedName,
+        position: trimmedPos,
+        status:   updatedStatus,
+        salary:   salaryNum,
+      });
+    } catch (err) {
+      console.error('DB update error, falling back to memory:', err.message);
+    }
+  }
+
+  var employee = null;
+  for (var i = 0; i < employees.length; i++) {
+    if (employees[i].id === id) { employee = employees[i]; break; }
+  }
+
+  if (!employee) {
+    return res.status(404).json({ error: 'Employee not found' });
+  }
+
+  employee.name = trimmedName;
+  employee.position = trimmedPos;
+  employee.salary = salaryNum;
+  if (status) employee.status = String(status);
+
+  res.json(employee);
 });
 
 // PUT /api/employees/:id/status  (Toggle Active <-> On Leave)
@@ -350,6 +439,7 @@ async function startServer() {
     console.log('===========================================');
     console.log('  GET  /api/employees');
     console.log('  POST /api/employees');
+    console.log('  PUT  /api/employees/:id');
     console.log('  PUT  /api/employees/:id/status');
     console.log('  DEL  /api/employees/:id');
     console.log('  GET  /api/employees/salary-clusters');

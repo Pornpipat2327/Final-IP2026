@@ -59,6 +59,17 @@ async function runTests() {
     console.log(`  ${c.group}: centroid=${c.centroid} count=${c.count}`);
   });
 
+  console.log('\n===== TEST 10: PUT /api/employees/:id (edit full info) =====');
+  const add2 = await req('POST', '/api/employees', { name: 'Edit Target', position: 'Junior Dev', salary: 30000 });
+  const editId = add2.body.id;
+  const edited = await req('PUT', `/api/employees/${editId}`, { name: 'Edited Senior Dev', position: 'Senior Dev', salary: 80000, status: 'Active' });
+  console.log('Status:', edited.status, '| Name:', edited.body.name, '| Pos:', edited.body.position, '| Salary:', edited.body.salary);
+  await req('DELETE', `/api/employees/${editId}`);
+
+  console.log('\n===== TEST 11: GET /api/employees?search=developer / engineer =====');
+  const searchRes = await req('GET', '/api/employees?search=Engineer');
+  console.log('Status:', searchRes.status, '| Search "Engineer" found:', searchRes.body.length, 'employees');
+
   console.log('\n✅ All tests passed!\n');
 }
 

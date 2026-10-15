@@ -46,7 +46,7 @@ function showConfirm(title, message, onConfirm) {
 }
 
 // ── Employee Card Component ────────────────────────────────────────────────────
-function EmployeeCard({ emp, onToggleStatus, onDelete }) {
+function EmployeeCard({ emp, onToggleStatus, onEdit, onDelete }) {
   const isActive = emp.status === 'Active';
   return (
     <View style={styles.card}>
@@ -72,12 +72,19 @@ function EmployeeCard({ emp, onToggleStatus, onDelete }) {
 
       <View style={styles.cardActions}>
         <TouchableOpacity
+          style={[styles.actionBtn, styles.editBtn]}
+          onPress={() => onEdit(emp)}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.editBtnText}>✏️ แก้ไข</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
           style={[styles.actionBtn, styles.toggleBtn]}
           onPress={() => onToggleStatus(emp.id)}
           activeOpacity={0.8}
         >
           <Text style={styles.toggleBtnText}>
-            {isActive ? '⏸ ลาหยุด' : '▶ กลับมาทำงาน'}
+            {isActive ? '⏸ ลาหยุด' : '▶ ทำงาน'}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -135,6 +142,9 @@ export default function DashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
 
+  // Search
+  const [searchQuery, setSearchQuery] = useState('');
+
   // Add form
   const [showAddModal, setShowAddModal] = useState(false);
   const [addName, setAddName] = useState('');
@@ -142,6 +152,16 @@ export default function DashboardScreen() {
   const [addSalary, setAddSalary] = useState('');
   const [addLoading, setAddLoading] = useState(false);
   const [addError, setAddError] = useState('');
+
+  // Edit form
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editId, setEditId] = useState(null);
+  const [editName, setEditName] = useState('');
+  const [editPosition, setEditPosition] = useState('');
+  const [editSalary, setEditSalary] = useState('');
+  const [editStatus, setEditStatus] = useState('Active');
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState('');
 
   // Clustering
   const [clusters, setClusters] = useState(null);
@@ -223,6 +243,54 @@ export default function DashboardScreen() {
     }
   };
 
+  // ── Edit Employee ──────────────────────────────────────────────────────────
+  const handleOpenEdit = (emp) => {
+    setEditId(emp.id);
+    setEditName(emp.name);
+    setEditPosition(emp.position);
+    setEditSalary(String(emp.salary));
+    setEditStatus(emp.status);
+    setEditError('');
+    setShowEditModal(true);
+  };
+
+  const handleSaveEdit = async () => {
+    const n = editName.trim();
+    const pos = editPosition.trim();
+    const sal = editSalary.trim();
+
+    if (!n || !pos || !sal) {
+      setEditError('กรุณากรอกข้อมูลให้ครบทุกช่อง');
+      return;
+    }
+    if (isNaN(Number(sal)) || Number(sal) <= 0) {
+      setEditError('เงินเดือนต้องเป็นตัวเลขที่มากกว่า 0');
+      return;
+    }
+
+    setEditLoading(true);
+    setEditError('');
+    try {
+      const res = await fetch(`${API_BASE}/api/employees/${editId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: n, position: pos, salary: Number(sal), status: editStatus }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setEmployees((prev) => prev.map((e) => (e.id === editId ? data : e)));
+        setShowEditModal(false);
+        setClusters(null); // reset clusters เพื่อคำนวณใหม่
+      } else {
+        setEditError(data.error || 'ไม่สามารถแก้ไขข้อมูลได้');
+      }
+    } catch {
+      setEditError('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
   // ── Toggle Status ──────────────────────────────────────────────────────────
   const handleToggleStatus = async (id) => {
     try {
@@ -295,6 +363,18 @@ export default function DashboardScreen() {
   const avgSalary = employees.length > 0
     ? Math.round(employees.reduce((s, e) => s + e.salary, 0) / employees.length)
     : 0;
+
+  // ── Filtered Employees (Search) ─────────────────────────────────────────────
+  const filteredEmployees = employees.filter((e) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase().trim();
+    return (
+      (e.name && e.name.toLowerCase().includes(q)) ||
+      (e.position && e.position.toLowerCase().includes(q)) ||
+      (e.status && e.status.toLowerCase().includes(q)) ||
+      String(e.salary).includes(q)
+    );
+  });
 
   // ────────────────────────────────────────────────────────────────────────────
   return (
@@ -393,9 +473,37 @@ export default function DashboardScreen() {
           </View>
         )}
 
+        {/* ── Search Bar ── */}
+        <View style={styles.searchSection}>
+          <View style={styles.searchBox}>
+            <Text style={styles.searchIcon}>🔍</Text>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="ค้นหาชื่อ, ตำแหน่ง, สถานะ หรือเงินเดือน..."
+              placeholderTextColor="#5a5a7a"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+            {!!searchQuery && (
+              <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.searchClearBtn}>
+                <Text style={styles.searchClearText}>✕</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
         {/* ── Employee List ── */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>รายชื่อพนักงาน ({employees.length} คน)</Text>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>
+              รายชื่อพนักงาน ({filteredEmployees.length}{searchQuery ? ` / ${employees.length}` : ''} คน)
+            </Text>
+            {!!searchQuery && (
+              <TouchableOpacity onPress={() => setSearchQuery('')}>
+                <Text style={styles.clearSearchLink}>ล้างคำค้นหา</Text>
+              </TouchableOpacity>
+            )}
+          </View>
 
           {loading && (
             <View style={styles.centerBox}>
@@ -413,14 +521,23 @@ export default function DashboardScreen() {
             </View>
           )}
 
-          {!loading && !error && employees.map((emp) => (
+          {!loading && !error && filteredEmployees.map((emp) => (
             <EmployeeCard
               key={emp.id}
               emp={emp}
               onToggleStatus={handleToggleStatus}
+              onEdit={handleOpenEdit}
               onDelete={handleDelete}
             />
           ))}
+
+          {!loading && !error && filteredEmployees.length === 0 && employees.length > 0 && (
+            <View style={styles.emptyBox}>
+              <Text style={styles.emptyIcon}>🔍</Text>
+              <Text style={styles.emptyText}>ไม่พบพนักงานที่ค้นหา</Text>
+              <Text style={styles.emptyHint}>ลองเปลี่ยนคำค้นหา หรือกด "ล้างคำค้นหา"</Text>
+            </View>
+          )}
 
           {!loading && !error && employees.length === 0 && (
             <View style={styles.emptyBox}>
@@ -488,6 +605,88 @@ export default function DashboardScreen() {
               {addLoading
                 ? <ActivityIndicator color="#fff" size="small" />
                 : <Text style={styles.submitBtnText}>บันทึก</Text>
+              }
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Edit Employee Modal ── */}
+      <Modal visible={showEditModal} animationType="slide" transparent presentationStyle="overFullScreen">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>✏️ แก้ไขข้อมูลพนักงาน</Text>
+              <TouchableOpacity onPress={() => { setShowEditModal(false); setEditError(''); }}>
+                <Text style={styles.modalClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {!!editError && (
+              <View style={styles.errorBox}>
+                <Text style={styles.errorText}>⚠️ {editError}</Text>
+              </View>
+            )}
+
+            <Text style={styles.label}>ชื่อ-นามสกุล *</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="เช่น John Doe"
+              placeholderTextColor="#4a4a6a"
+              value={editName}
+              onChangeText={(t) => { setEditName(t); setEditError(''); }}
+            />
+
+            <Text style={styles.label}>ตำแหน่งงาน *</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="เช่น Software Engineer"
+              placeholderTextColor="#4a4a6a"
+              value={editPosition}
+              onChangeText={(t) => { setEditPosition(t); setEditError(''); }}
+            />
+
+            <Text style={styles.label}>เงินเดือน (บาท) *</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="เช่น 45000"
+              placeholderTextColor="#4a4a6a"
+              value={editSalary}
+              onChangeText={(t) => { setEditSalary(t); setEditError(''); }}
+              keyboardType="numeric"
+            />
+
+            <Text style={styles.label}>สถานะการทำงาน</Text>
+            <View style={styles.statusSelectRow}>
+              <TouchableOpacity
+                style={[styles.statusSelectBtn, editStatus === 'Active' && styles.statusSelectActive]}
+                onPress={() => setEditStatus('Active')}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.statusSelectText, editStatus === 'Active' && styles.statusSelectTextActive]}>
+                  ● Active (กำลังทำงาน)
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.statusSelectBtn, editStatus === 'On Leave' && styles.statusSelectLeave]}
+                onPress={() => setEditStatus('On Leave')}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.statusSelectText, editStatus === 'On Leave' && styles.statusSelectTextLeave]}>
+                  ○ On Leave (ลาหยุด)
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.submitBtn, styles.editSubmitBtn, editLoading && styles.submitBtnDisabled]}
+              onPress={handleSaveEdit}
+              disabled={editLoading}
+              activeOpacity={0.8}
+            >
+              {editLoading
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <Text style={styles.submitBtnText}>บันทึกการแก้ไข</Text>
               }
             </TouchableOpacity>
           </View>
@@ -672,12 +871,35 @@ const styles = StyleSheet.create({
     color: '#ffffff', fontSize: 15,
     paddingHorizontal: 16, height: 50,
   },
-  submitBtn: {
-    backgroundColor: '#6366f1', borderRadius: 14, height: 52,
-    justifyContent: 'center', alignItems: 'center', marginTop: 24,
-    shadowColor: '#6366f1', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 10,
-    elevation: 4,
+  // Search Section
+  searchSection: { paddingHorizontal: 16, marginTop: 4, marginBottom: 8 },
+  searchBox: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#16162a', borderRadius: 12,
+    borderWidth: 1, borderColor: '#2a2a4a',
+    paddingHorizontal: 14, height: 46,
   },
-  submitBtnDisabled: { backgroundColor: '#3a3a6a', shadowOpacity: 0 },
-  submitBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  searchIcon: { fontSize: 16, marginRight: 8 },
+  searchInput: { flex: 1, color: '#ffffff', fontSize: 14 },
+  searchClearBtn: { padding: 4 },
+  searchClearText: { color: '#6a6a8a', fontSize: 14, fontWeight: '700' },
+  clearSearchLink: { color: '#6366f1', fontSize: 12, fontWeight: '600', marginBottom: 12 },
+
+  // Edit Button in card
+  editBtn: { backgroundColor: '#13233a', borderWidth: 1, borderColor: '#1d4ed8' },
+  editBtnText: { color: '#60a5fa', fontSize: 13, fontWeight: '600' },
+
+  // Status Selector in Edit Modal
+  statusSelectRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  statusSelectBtn: {
+    flex: 1, paddingVertical: 10, borderRadius: 10,
+    borderWidth: 1, borderColor: '#2a2a4a', backgroundColor: '#0f0f1a',
+    alignItems: 'center',
+  },
+  statusSelectActive: { borderColor: '#10b981', backgroundColor: '#06302a' },
+  statusSelectLeave: { borderColor: '#f59e0b', backgroundColor: '#3a2005' },
+  statusSelectText: { fontSize: 12, color: '#6a6a8a', fontWeight: '600' },
+  statusSelectTextActive: { color: '#10b981' },
+  statusSelectTextLeave: { color: '#f59e0b' },
+  editSubmitBtn: { backgroundColor: '#2563eb' },
 });
