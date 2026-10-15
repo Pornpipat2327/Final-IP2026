@@ -18,8 +18,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 
 // ── API Base URL ──────────────────────────────────────────────────────────────
-// สำหรับ Expo Go บนมือถือ ให้เปลี่ยนเป็น IP เครื่องที่รัน backend เช่น http://192.168.x.x:3000
-const API_BASE = 'http://localhost:3000';
+// เชื่อมต่อ Backend บนเซิร์ฟเวอร์มหาลัย (พอร์ต 3032) ที่ต่อกับ phpMyAdmin โดยตรง
+const API_BASE = 'http://119.59.102.161:3032';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function formatSalary(n) {

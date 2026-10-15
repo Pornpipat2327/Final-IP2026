@@ -16,8 +16,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 
 // ── กำหนด API URL ──────────────────────────────────────────────────────────
-// สำหรับ Expo Go บนมือถือ ให้เปลี่ยน localhost เป็น IP เครื่องตัวเอง เช่น 192.168.x.x
-const API_BASE = 'http://localhost:3000';
+// เชื่อมต่อ Backend บนเซิร์ฟเวอร์มหาลัย (พอร์ต 3032) ที่ต่อกับ phpMyAdmin โดยตรง
+const API_BASE = 'http://119.59.102.161:3032';
 
 export default function LoginScreen() {
   const router = useRouter();
