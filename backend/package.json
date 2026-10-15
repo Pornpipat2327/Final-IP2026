@@ -1,0 +1,18 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "HR Manager & Salary Analytics API Server",
+  "main": "Server.js",
+  "scripts": {
+    "start": "node Server.js",
+    "dev": "node Server.js"
+  },
+  "keywords": [],
+  "type": "commonjs",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^18.0.8",
+    "express": "^5.3.0",
+    "mysql2": "^3.24.6"
+  }
+}
