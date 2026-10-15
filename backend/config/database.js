@@ -32,21 +32,7 @@ const TABLE_NAME = process.env.EMPLOYEES_TABLE || 'Pornpipat_6730202327';
 
 async function initDatabase() {
   try {
-    // 1. ตรวจสอบการเชื่อมต่อ MySQL server และสร้าง Database หากยังไม่มี
-    const adminConn = await mysql.createConnection({
-      host: dbConfig.host,
-      user: dbConfig.user,
-      password: dbConfig.password,
-      port: dbConfig.port,
-      connectTimeout: 3000,
-    });
-
-    await adminConn.query(
-      `CREATE DATABASE IF NOT EXISTS \`${dbConfig.database}\` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`
-    );
-    await adminConn.end();
-
-    // 2. สร้าง Connection Pool เข้าสู่ Database
+    // 1. สร้าง Connection Pool เชื่อมต่อไปยัง Database โดยตรง
     pool = mysql.createPool(dbConfig);
     const conn = await pool.getConnection();
 
